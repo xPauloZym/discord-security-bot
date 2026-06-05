@@ -7,6 +7,7 @@ from bot import database as db
 
 MAX_ATTEMPTS_PER_DAY = 20
 WIN_REWARD = 10
+GAME_COST = 4
 
 
 def today() -> str:
@@ -27,6 +28,15 @@ async def check_attempts(ctx) -> bool:
     return remaining
 
 
+async def charge_and_check(ctx) -> bool:
+    coins = await db.get_coins(str(ctx.author.id), str(ctx.guild.id))
+    if coins < GAME_COST:
+        await ctx.send(f"❌ Você precisa de **{GAME_COST} 🪙** para jogar. Seu saldo: **{coins} 🪙**.\nUse `!daily` para ganhar moedas!")
+        return False
+    await db.add_coins(str(ctx.author.id), str(ctx.guild.id), -GAME_COST)
+    return True
+
+
 class Games(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -35,23 +45,31 @@ class Games(commands.Cog):
         await db.add_coins(str(ctx.author.id), str(ctx.guild.id), WIN_REWARD)
         coins = await db.get_coins(str(ctx.author.id), str(ctx.guild.id))
         remaining = MAX_ATTEMPTS_PER_DAY - await db.get_game_attempts(str(ctx.author.id), str(ctx.guild.id), today())
+        net = WIN_REWARD - GAME_COST
         embed = discord.Embed(
             title=f"🎉 Você ganhou — {game_name}!",
             description=extra,
             color=discord.Color.green()
         )
-        embed.add_field(name="🪙 Recompensa", value=f"+{WIN_REWARD} moedas", inline=True)
+        embed.add_field(name="🪙 Ganho líquido", value=f"+{net} moedas (+{WIN_REWARD} - {GAME_COST} custo)", inline=True)
         embed.add_field(name="💰 Saldo", value=f"{coins} 🪙", inline=True)
         embed.add_field(name="🎮 Tentativas restantes hoje", value=str(remaining), inline=True)
         return embed
 
-    async def _handle_loss(self, ctx, game_name: str, extra: str = ""):
+    async def _handle_loss(self, ctx, game_name: str, extra: str = "", penalty: int = None):
+        if penalty is None:
+            penalty = WIN_REWARD
+        await db.add_coins(str(ctx.author.id), str(ctx.guild.id), -penalty)
+        coins = await db.get_coins(str(ctx.author.id), str(ctx.guild.id))
         remaining = MAX_ATTEMPTS_PER_DAY - await db.get_game_attempts(str(ctx.author.id), str(ctx.guild.id), today())
+        total_lost = GAME_COST + penalty
         embed = discord.Embed(
             title=f"😢 Você perdeu — {game_name}",
             description=extra,
             color=discord.Color.red()
         )
+        embed.add_field(name="💸 Total perdido", value=f"-{total_lost} moedas ({GAME_COST} custo + {penalty} penalidade)", inline=False)
+        embed.add_field(name="💰 Saldo", value=f"{coins} 🪙", inline=True)
         embed.add_field(name="🎮 Tentativas restantes hoje", value=str(remaining), inline=True)
         return embed
 
@@ -59,7 +77,7 @@ class Games(commands.Cog):
     @commands.guild_only()
     async def coinflip(self, ctx, choice: str = None):
         if not choice:
-            return await ctx.send("❌ Escolha `cara` ou `coroa`. Ex: `!coinflip cara`")
+            return await ctx.send(f"❌ Escolha `cara` ou `coroa`. Ex: `!coinflip cara`\n💸 Custo: **{GAME_COST} 🪙** por jogo.")
 
         choice = choice.lower()
         valid = {"cara": "cara", "coroa": "coroa", "heads": "cara", "tails": "coroa", "c": "cara", "k": "coroa"}
@@ -68,6 +86,8 @@ class Games(commands.Cog):
 
         remaining = await check_attempts(ctx)
         if remaining is False:
+            return
+        if not await charge_and_check(ctx):
             return
         await db.increment_game_attempts(str(ctx.author.id), str(ctx.guild.id), today())
 
@@ -85,10 +105,12 @@ class Games(commands.Cog):
     @commands.guild_only()
     async def guess(self, ctx, number: int = None):
         if number is None or not (1 <= number <= 10):
-            return await ctx.send("❌ Escolha um número de **1 a 10**. Ex: `!adivinhar 7`")
+            return await ctx.send(f"❌ Escolha um número de **1 a 10**. Ex: `!adivinhar 7`\n💸 Custo: **{GAME_COST} 🪙** por jogo.")
 
         remaining = await check_attempts(ctx)
         if remaining is False:
+            return
+        if not await charge_and_check(ctx):
             return
         await db.increment_game_attempts(str(ctx.author.id), str(ctx.guild.id), today())
 
@@ -110,10 +132,12 @@ class Games(commands.Cog):
                  "rock": "pedra", "paper": "papel", "scissors": "tesoura"}
 
         if not choice or choice.lower() not in options:
-            return await ctx.send("❌ Escolha: `pedra`, `papel` ou `tesoura`")
+            return await ctx.send(f"❌ Escolha: `pedra`, `papel` ou `tesoura`\n💸 Custo: **{GAME_COST} 🪙** por jogo.")
 
         remaining = await check_attempts(ctx)
         if remaining is False:
+            return
+        if not await charge_and_check(ctx):
             return
         await db.increment_game_attempts(str(ctx.author.id), str(ctx.guild.id), today())
 
@@ -125,8 +149,11 @@ class Games(commands.Cog):
         result_line = f"{emojis[player]} **{player}** vs {emojis[bot_choice]} **{bot_choice}**"
 
         if player == bot_choice:
-            embed = discord.Embed(title="🤝 Empate!", description=result_line, color=discord.Color.yellow())
+            coins = await db.get_coins(str(ctx.author.id), str(ctx.guild.id))
             remaining_now = MAX_ATTEMPTS_PER_DAY - await db.get_game_attempts(str(ctx.author.id), str(ctx.guild.id), today())
+            embed = discord.Embed(title="🤝 Empate!", description=result_line, color=discord.Color.yellow())
+            embed.add_field(name="💸 Custo", value=f"-{GAME_COST} moedas", inline=True)
+            embed.add_field(name="💰 Saldo", value=f"{coins} 🪙", inline=True)
             embed.add_field(name="🎮 Tentativas restantes", value=str(remaining_now), inline=True)
         elif wins[player] == bot_choice:
             embed = await self._handle_win(ctx, "Pedra Papel Tesoura", result_line)
@@ -140,6 +167,8 @@ class Games(commands.Cog):
     async def slots(self, ctx):
         remaining = await check_attempts(ctx)
         if remaining is False:
+            return
+        if not await charge_and_check(ctx):
             return
         await db.increment_game_attempts(str(ctx.author.id), str(ctx.guild.id), today())
 
@@ -161,30 +190,37 @@ class Games(commands.Cog):
             reward = WIN_REWARD * multiplier
             await db.add_coins(str(ctx.author.id), str(ctx.guild.id), reward)
             coins = await db.get_coins(str(ctx.author.id), str(ctx.guild.id))
+            net = reward - GAME_COST
             embed = discord.Embed(
                 title=f"🎰 JACKPOT! {display}",
                 description=f"**TRÊS IGUAIS!** Multiplicador x{multiplier}!",
                 color=discord.Color.gold()
             )
-            embed.add_field(name="🪙 Recompensa", value=f"+{reward} moedas", inline=True)
+            embed.add_field(name="🪙 Ganho líquido", value=f"+{net} moedas (+{reward} - {GAME_COST} custo)", inline=True)
             embed.add_field(name="💰 Saldo", value=f"{coins} 🪙", inline=True)
         elif reels[0] == reels[1] or reels[1] == reels[2] or reels[0] == reels[2]:
             await db.add_coins(str(ctx.author.id), str(ctx.guild.id), WIN_REWARD)
             coins = await db.get_coins(str(ctx.author.id), str(ctx.guild.id))
+            net = WIN_REWARD - GAME_COST
             embed = discord.Embed(
                 title=f"🎰 Par! {display}",
                 description="Dois iguais — você ganhou!",
                 color=discord.Color.green()
             )
-            embed.add_field(name="🪙 Recompensa", value=f"+{WIN_REWARD} moedas", inline=True)
+            embed.add_field(name="🪙 Ganho líquido", value=f"+{net} moedas (+{WIN_REWARD} - {GAME_COST} custo)", inline=True)
             embed.add_field(name="💰 Saldo", value=f"{coins} 🪙", inline=True)
         else:
+            await db.add_coins(str(ctx.author.id), str(ctx.guild.id), -WIN_REWARD)
+            coins = await db.get_coins(str(ctx.author.id), str(ctx.guild.id))
             remaining_now = MAX_ATTEMPTS_PER_DAY - await db.get_game_attempts(str(ctx.author.id), str(ctx.guild.id), today())
+            total_lost = GAME_COST + WIN_REWARD
             embed = discord.Embed(
                 title=f"🎰 {display}",
                 description="Sem sorte dessa vez!",
                 color=discord.Color.red()
             )
+            embed.add_field(name="💸 Total perdido", value=f"-{total_lost} moedas ({GAME_COST} custo + {WIN_REWARD} penalidade)", inline=False)
+            embed.add_field(name="💰 Saldo", value=f"{coins} 🪙", inline=True)
             embed.add_field(name="🎮 Tentativas restantes", value=str(remaining_now), inline=True)
 
         await msg.delete()
@@ -195,6 +231,7 @@ class Games(commands.Cog):
     async def attempts(self, ctx):
         used = await db.get_game_attempts(str(ctx.author.id), str(ctx.guild.id), today())
         remaining = MAX_ATTEMPTS_PER_DAY - used
+        coins = await db.get_coins(str(ctx.author.id), str(ctx.guild.id))
 
         embed = discord.Embed(
             title="🎮 Tentativas de Jogo",
@@ -202,6 +239,8 @@ class Games(commands.Cog):
         )
         embed.add_field(name="✅ Restantes hoje", value=f"**{remaining}/{MAX_ATTEMPTS_PER_DAY}**", inline=True)
         embed.add_field(name="❌ Usadas", value=str(used), inline=True)
+        embed.add_field(name="💸 Custo por jogo", value=f"{GAME_COST} 🪙", inline=True)
+        embed.add_field(name="💰 Seu saldo", value=f"{coins} 🪙", inline=True)
         embed.set_footer(text="Recarrega toda meia-noite (UTC)!")
         await ctx.send(embed=embed)
 

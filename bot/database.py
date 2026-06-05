@@ -105,6 +105,14 @@ async def init_db():
                 PRIMARY KEY (user_id, guild_id)
             )
         """)
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS message_count (
+                user_id TEXT NOT NULL,
+                guild_id TEXT NOT NULL,
+                count INTEGER DEFAULT 0,
+                PRIMARY KEY (user_id, guild_id)
+            )
+        """)
         await db.commit()
 
 
@@ -402,3 +410,36 @@ async def get_all_bans(guild_id: str):
             (guild_id,)
         ) as cursor:
             return await cursor.fetchall()
+
+
+async def increment_message_count(user_id: str, guild_id: str) -> int:
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            "INSERT INTO message_count (user_id, guild_id, count) VALUES (?,?,1) ON CONFLICT(user_id,guild_id) DO UPDATE SET count=count+1",
+            (user_id, guild_id)
+        )
+        await db.commit()
+        async with db.execute(
+            "SELECT count FROM message_count WHERE user_id=? AND guild_id=?",
+            (user_id, guild_id)
+        ) as c:
+            row = await c.fetchone()
+            return row[0] if row else 1
+
+
+async def reset_game_attempts(user_id: str, guild_id: str):
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            "DELETE FROM game_attempts WHERE user_id=? AND guild_id=?",
+            (user_id, guild_id)
+        )
+        await db.commit()
+
+
+async def reset_coins(user_id: str, guild_id: str):
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            "INSERT INTO economy (user_id, guild_id, coins) VALUES (?,?,0) ON CONFLICT(user_id,guild_id) DO UPDATE SET coins=0",
+            (user_id, guild_id)
+        )
+        await db.commit()

@@ -45,9 +45,35 @@ SHOP_ITEMS = {
 }
 
 
+MESSAGE_REWARD_EVERY = 50
+MESSAGE_REWARD_AMOUNT = 20
+
+
 class Economy(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+
+    @commands.Cog.listener()
+    async def on_message(self, message: discord.Message):
+        if message.author.bot or not message.guild:
+            return
+        if message.content.startswith(("!", "/")):
+            return
+        count = await db.increment_message_count(str(message.author.id), str(message.guild.id))
+        if count % MESSAGE_REWARD_EVERY == 0:
+            await db.add_coins(str(message.author.id), str(message.guild.id), MESSAGE_REWARD_AMOUNT)
+            try:
+                embed = discord.Embed(
+                    title="🎉 Recompensa por mensagens!",
+                    description=f"Parabéns {message.author.mention}! Você enviou **{count} mensagens** e ganhou **{MESSAGE_REWARD_AMOUNT} 🪙**!",
+                    color=discord.Color.gold()
+                )
+                coins = await db.get_coins(str(message.author.id), str(message.guild.id))
+                embed.add_field(name="💰 Saldo atual", value=f"**{coins} 🪙**", inline=True)
+                embed.set_footer(text=f"Ganhe mais a cada {MESSAGE_REWARD_EVERY} mensagens!")
+                await message.channel.send(embed=embed)
+            except discord.Forbidden:
+                pass
 
     @commands.command(name="daily", aliases=["diario"], help="Pegue suas 20 moedas diárias!")
     @commands.guild_only()
