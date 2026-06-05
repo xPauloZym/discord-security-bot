@@ -2,7 +2,7 @@ import aiosqlite
 import os
 
 DB_PATH = os.path.join(os.path.dirname(__file__), "data", "bot.db")
-
+os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
 
 async def init_db():
     async with aiosqlite.connect(DB_PATH) as db:
