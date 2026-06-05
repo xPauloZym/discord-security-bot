@@ -70,6 +70,182 @@ async def init_db():
                 executed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS economy (
+                user_id TEXT NOT NULL,
+                guild_id TEXT NOT NULL,
+                coins INTEGER DEFAULT 0,
+                last_daily TEXT,
+                PRIMARY KEY (user_id, guild_id)
+            )
+        """)
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS inventory (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id TEXT NOT NULL,
+                guild_id TEXT NOT NULL,
+                item_id TEXT NOT NULL,
+                quantity INTEGER DEFAULT 1
+            )
+        """)
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS game_attempts (
+                user_id TEXT NOT NULL,
+                guild_id TEXT NOT NULL,
+                date TEXT NOT NULL,
+                attempts INTEGER DEFAULT 0,
+                PRIMARY KEY (user_id, guild_id, date)
+            )
+        """)
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS shields (
+                user_id TEXT NOT NULL,
+                guild_id TEXT NOT NULL,
+                expires_at TEXT NOT NULL,
+                PRIMARY KEY (user_id, guild_id)
+            )
+        """)
+        await db.commit()
+
+
+async def get_coins(user_id: str, guild_id: str) -> int:
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute(
+            "SELECT coins FROM economy WHERE user_id=? AND guild_id=?", (user_id, guild_id)
+        ) as c:
+            row = await c.fetchone()
+            return row[0] if row else 0
+
+
+async def add_coins(user_id: str, guild_id: str, amount: int):
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            "INSERT INTO economy (user_id, guild_id, coins) VALUES (?,?,?) ON CONFLICT(user_id,guild_id) DO UPDATE SET coins=coins+?",
+            (user_id, guild_id, max(0, amount), amount)
+        )
+        await db.commit()
+
+
+async def set_coins(user_id: str, guild_id: str, amount: int):
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            "INSERT INTO economy (user_id, guild_id, coins) VALUES (?,?,?) ON CONFLICT(user_id,guild_id) DO UPDATE SET coins=?",
+            (user_id, guild_id, amount, amount)
+        )
+        await db.commit()
+
+
+async def get_last_daily(user_id: str, guild_id: str):
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute(
+            "SELECT last_daily FROM economy WHERE user_id=? AND guild_id=?", (user_id, guild_id)
+        ) as c:
+            row = await c.fetchone()
+            return row[0] if row else None
+
+
+async def set_last_daily(user_id: str, guild_id: str, date_str: str):
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            "INSERT INTO economy (user_id, guild_id, coins, last_daily) VALUES (?,?,0,?) ON CONFLICT(user_id,guild_id) DO UPDATE SET last_daily=?",
+            (user_id, guild_id, date_str, date_str)
+        )
+        await db.commit()
+
+
+async def get_inventory(user_id: str, guild_id: str):
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute(
+            "SELECT item_id, quantity FROM inventory WHERE user_id=? AND guild_id=?", (user_id, guild_id)
+        ) as c:
+            return await c.fetchall()
+
+
+async def add_item(user_id: str, guild_id: str, item_id: str, qty: int = 1):
+    async with aiosqlite.connect(DB_PATH) as db:
+        existing = await db.execute(
+            "SELECT id, quantity FROM inventory WHERE user_id=? AND guild_id=? AND item_id=?",
+            (user_id, guild_id, item_id)
+        )
+        row = await existing.fetchone()
+        if row:
+            await db.execute("UPDATE inventory SET quantity=quantity+? WHERE id=?", (qty, row[0]))
+        else:
+            await db.execute(
+                "INSERT INTO inventory (user_id, guild_id, item_id, quantity) VALUES (?,?,?,?)",
+                (user_id, guild_id, item_id, qty)
+            )
+        await db.commit()
+
+
+async def remove_item(user_id: str, guild_id: str, item_id: str) -> bool:
+    async with aiosqlite.connect(DB_PATH) as db:
+        existing = await db.execute(
+            "SELECT id, quantity FROM inventory WHERE user_id=? AND guild_id=? AND item_id=?",
+            (user_id, guild_id, item_id)
+        )
+        row = await existing.fetchone()
+        if not row or row[1] < 1:
+            return False
+        if row[1] == 1:
+            await db.execute("DELETE FROM inventory WHERE id=?", (row[0],))
+        else:
+            await db.execute("UPDATE inventory SET quantity=quantity-1 WHERE id=?", (row[0],))
+        await db.commit()
+        return True
+
+
+async def get_game_attempts(user_id: str, guild_id: str, date_str: str) -> int:
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute(
+            "SELECT attempts FROM game_attempts WHERE user_id=? AND guild_id=? AND date=?",
+            (user_id, guild_id, date_str)
+        ) as c:
+            row = await c.fetchone()
+            return row[0] if row else 0
+
+
+async def increment_game_attempts(user_id: str, guild_id: str, date_str: str):
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            "INSERT INTO game_attempts (user_id, guild_id, date, attempts) VALUES (?,?,?,1) ON CONFLICT(user_id,guild_id,date) DO UPDATE SET attempts=attempts+1",
+            (user_id, guild_id, date_str)
+        )
+        await db.commit()
+
+
+async def get_top_coins(guild_id: str, limit: int = 10):
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute(
+            "SELECT user_id, coins FROM economy WHERE guild_id=? ORDER BY coins DESC LIMIT ?",
+            (guild_id, limit)
+        ) as c:
+            return await c.fetchall()
+
+
+async def has_shield(user_id: str, guild_id: str) -> bool:
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute(
+            "SELECT expires_at FROM shields WHERE user_id=? AND guild_id=?", (user_id, guild_id)
+        ) as c:
+            row = await c.fetchone()
+            if not row:
+                return False
+            from datetime import datetime, timezone
+            expires = datetime.fromisoformat(row[0])
+            if datetime.now(timezone.utc) > expires:
+                await db.execute("DELETE FROM shields WHERE user_id=? AND guild_id=?", (user_id, guild_id))
+                await db.commit()
+                return False
+            return True
+
+
+async def set_shield(user_id: str, guild_id: str, expires_at: str):
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            "INSERT INTO shields (user_id, guild_id, expires_at) VALUES (?,?,?) ON CONFLICT(user_id,guild_id) DO UPDATE SET expires_at=?",
+            (user_id, guild_id, expires_at, expires_at)
+        )
         await db.commit()
 
 
