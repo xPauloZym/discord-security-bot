@@ -37,6 +37,7 @@ class SecurityBot(commands.Bot):
             "bot.cogs.owner",
             "bot.cogs.xphelp",
             "bot.cogs.battle",
+            "bot.cogs.gif_commands",
         ]
         for cog in cogs:
             await self.load_extension(cog)

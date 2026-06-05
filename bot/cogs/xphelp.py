@@ -55,7 +55,6 @@ CATEGORIES = {
             (f"`{BOT_PREFIX}pedrapapeltesoura pedra/papel/tesoura`", "Pedra Papel Tesoura (custa 4 🪙, ganha/perde 10 🪙)"),
             (f"`{BOT_PREFIX}slots`", "Gire os slots (custa 4 🪙, ganha/perde 10 🪙)"),
             (f"`{BOT_PREFIX}tentativas`", "Vê tentativas de jogo restantes hoje"),
-            (f"`{BOT_PREFIX}lutar @user`", "Desafie alguém para uma batalha com emojis (aposta 20 🪙)"),
         ]
     },
     "diversao": {
@@ -72,6 +71,20 @@ CATEGORIES = {
             (f"`{BOT_PREFIX}piada`", "Conta uma piada aleatória"),
             (f"`{BOT_PREFIX}abraco @user`", "Manda um abraço"),
             (f"`{BOT_PREFIX}ship @user1 @user2`", "Mede compatibilidade"),
+            (f"`{BOT_PREFIX}gif [anime/jogo]`", "GIF aleatório de anime ou jogo"),
+            (f"`{BOT_PREFIX}reagir @user <ação>`", "GIF anime personalizado para alguém — ex: abraco, beijo, soco, tapa, dance…"),
+        ]
+    },
+    "batalhas": {
+        "emoji": "⚔️",
+        "title": "Batalhas",
+        "commands": [
+            (f"`{BOT_PREFIX}lutar @user`", "Desafia alguém para uma batalha por turnos"),
+            ("**Alias:** `!batalha` `!fight` `!duel`", "Todos funcionam igual ao !lutar"),
+            ("**Aposta:** 20 🪙", "Quem perder paga 20 🪙 ao vencedor"),
+            ("**Empate:** 0 🪙", "Em caso de empate nenhuma moeda é transferida"),
+            ("**Cooldown:** 30s por usuário", "Aguarde 30 segundos entre batalhas"),
+            ("**Golpes disponíveis:**", "⚔️ Normal • 🗡️ Pesado • ✨ Magia • 🔥 Chamas • ⚡ Raio • 💨 Esquiva+Corte • 🧊 Gelo • ☠️ Veneno"),
         ]
     },
     "itens": {
