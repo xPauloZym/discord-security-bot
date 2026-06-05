@@ -1,0 +1,18 @@
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+DISCORD_BOT_TOKEN = os.getenv("DISCORD_BOT_TOKEN", "")
+
+BOT_PREFIX = os.getenv("BOT_PREFIX", "!")
+
+LOG_CHANNEL_NAME = "mod-logs"
+
+ANTI_RAID_JOIN_THRESHOLD = 10
+ANTI_RAID_JOIN_WINDOW = 10
+
+ANTI_RAID_MENTION_THRESHOLD = 8
+ANTI_RAID_MENTION_WINDOW = 10
+
+ACCOUNT_AGE_THRESHOLD_DAYS = int(os.getenv("ACCOUNT_AGE_DAYS", "7"))
