@@ -31,6 +31,9 @@ class SecurityBot(commands.Bot):
             "bot.cogs.moderation",
             "bot.cogs.ip_ban",
             "bot.cogs.anti_raid",
+            "bot.cogs.economy",
+            "bot.cogs.games",
+            "bot.cogs.fun",
         ]
         for cog in cogs:
             await self.load_extension(cog)
@@ -88,18 +91,31 @@ async def main():
         embed.add_field(name="Servers", value=str(len(bot.guilds)), inline=True)
         embed.add_field(name="Latency", value=f"{round(bot.latency * 1000)}ms", inline=True)
         embed.add_field(
-            name="Commands",
-            value=(
-                f"`{BOT_PREFIX}kick` `{BOT_PREFIX}ban` `{BOT_PREFIX}tempban` `{BOT_PREFIX}unban`\n"
-                f"`{BOT_PREFIX}mute` `{BOT_PREFIX}unmute` `{BOT_PREFIX}purge`\n"
-                f"`{BOT_PREFIX}ipban` `{BOT_PREFIX}ipunban` `{BOT_PREFIX}ipbanlist`\n"
-                f"`{BOT_PREFIX}registerip` `{BOT_PREFIX}checkip` `{BOT_PREFIX}checkuser`\n"
-                f"`{BOT_PREFIX}registeralt` `{BOT_PREFIX}raidmode` `{BOT_PREFIX}raidstatus`\n"
-                f"`{BOT_PREFIX}modlog` `{BOT_PREFIX}banlist`"
-            ),
+            name="🛡️ Moderação",
+            value=f"`!kick` `!ban` `!tempban` `!unban` `!mute` `!unmute` `!purge`",
             inline=False
         )
-        embed.set_footer(text="🛡️ Protecting your server 24/7")
+        embed.add_field(
+            name="🚫 IP Ban",
+            value=f"`!ipban` `!ipunban` `!registerip` `!checkip` `!checkuser` `!registeralt`",
+            inline=False
+        )
+        embed.add_field(
+            name="🪙 Economia",
+            value=f"`!daily` `!saldo` `!loja` `!comprar` `!inventario` `!ranking` `!transferir`",
+            inline=False
+        )
+        embed.add_field(
+            name="🎮 Jogos",
+            value=f"`!coinflip` `!adivinhar` `!pedrapapeltesoura` `!slots` `!tentativas`",
+            inline=False
+        )
+        embed.add_field(
+            name="🎉 Diversão & Itens",
+            value=f"`!randomnick` `!bombanick` `!escudo` `!roubar` `!espiar` `!8ball` `!dado` `!piada` `!abraco` `!ship`",
+            inline=False
+        )
+        embed.set_footer(text="🛡️ Protecting your server 24/7 | Use !help <comando> para detalhes")
         await ctx.send(embed=embed)
 
     async with bot:
